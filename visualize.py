@@ -1,0 +1,55 @@
+import cv2
+import numpy as np
+import mediapipe as mp
+from useful import get_center
+
+mp_drawing = mp.solutions.drawing_utils
+mp_face_mesh = mp.solutions.face_mesh
+
+def draw_landmarks(image, result):
+    """
+    Rysowanie źrenic na obrazie
+    """
+    image.flags.writeable = True
+    if result.multi_face_landmarks:
+        for face_landmark in result.multi_face_landmarks:
+            mp_drawing.draw_landmarks(
+                image=image,
+                landmark_list=face_landmark,
+                connections=mp_face_mesh.FACEMESH_IRISES,
+                landmark_drawing_spec=None,
+                connection_drawing_spec=mp_drawing.DrawingSpec(thickness=1, circle_radius=1),
+            )
+    return image
+
+
+def draw_eye_outline(image, landmarks, indices, color=(0, 255, 0), thickness=1):
+    """
+    Rysuje obwódkę oka na podstawie indeksów punktów.
+    Mediapipe ma znormalizowane wartości [0,1] więc
+    trzeba zmienić na wartości w pikselach
+    """
+    h, w, _ = image.shape
+    points = []
+
+    for index in indices:
+        lm = landmarks[index]
+        x = int(lm.x * w)
+        y = int(lm.y * h)
+        points.append([x, y])
+
+    points = np.array(points, dtype=np.int32)
+    cv2.polylines(image, [points], isClosed=True, color=color, thickness=thickness)
+
+
+def draw_eye_center(image, landmarks, color=(0, 255, 0), thickness=1):
+    """
+    Zaznacza centrum oka na podstawie indeksów punktów.
+    Mediapipe ma znormalizowane wartości [0,1] więc
+    trzeba zmienić na wartości w pikselach
+    """
+    h, w, _ = image.shape
+    center_x, center_y = get_center(landmarks)
+    center_x_px = int(center_x * w)
+    center_y_px = int(center_y * h)
+    cv2.circle(image, (center_x_px, center_y_px), 3, color=color, thickness=thickness)
