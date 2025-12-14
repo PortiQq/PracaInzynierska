@@ -29,18 +29,17 @@ def draw_eye_outline(image, landmarks, indices, color=(0, 255, 0), thickness=1):
     Mediapipe ma znormalizowane wartości [0,1] więc
     trzeba zmienić na wartości w pikselach
     """
-    points = get_landmark_points_array(image, landmarks, indices)
+    points = get_np_array_of_landmarks(image, landmarks, indices)
     cv2.polylines(image, [points], isClosed=True, color=color, thickness=thickness)
 
 
-def draw_eye_center(image, landmarks, color=(0, 0, 255), thickness=2):
+def draw_eye_center(frame, landmarks, color=(0, 0, 255), thickness=2):
     """
     Zaznacza centrum oka na podstawie indeksów punktów.
     Mediapipe ma znormalizowane wartości [0,1] więc
     trzeba zmienić na wartości w pikselach
     """
-    h, w, _ = image.shape
-    center_x, center_y = get_center_of_landmarks(landmarks)
-    center_x_px = int(center_x * w)
-    center_y_px = int(center_y * h)
-    cv2.circle(image, (center_x_px, center_y_px), 1, color=color, thickness=thickness)
+    h, w, _ = frame.shape
+    (center_x, center_y) = get_center_of_landmarks(landmarks)
+    center_x_px, center_y_px = get_landmark_px(frame, (center_x, center_y))
+    cv2.circle(frame, (center_x_px, center_y_px), 1, color=color, thickness=thickness)

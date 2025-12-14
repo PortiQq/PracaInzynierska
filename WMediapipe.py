@@ -1,7 +1,7 @@
 import cv2
 
 from visualize import *
-from calculateEAR import *
+from calculators import *
 
 """Inicjalizacja mediapipowych rzeczy"""
 mp_face_mesh = mp.solutions.face_mesh   #468 punktów na twarzy
@@ -12,6 +12,7 @@ font = cv2.FONT_HERSHEY_SIMPLEX
 blink_flag = False
 BLINK_THRESHOLD  = 10
 
+BINARIZATION_THRESHOLD = 110
 
 """Indeksy obwódki oka bardziej i mniej dokładne
    lewe oko: obrys od lewej strony dołem do prawej i spowrotem
@@ -23,13 +24,9 @@ RIGHT_EYE =[33, 160, 158, 133, 153, 144] # 1pkt po lewej, 2pkt na górze, 1pkt p
 
 """Indeksy lewej i prawej źrenicy"""
 LEFT_IRIS = [474, 475, 476, 477]
-LEFT_IRIS_CENTER = [473]
+LEFT_IRIS_CENTER = 473
 RIGHT_IRIS = [469, 470, 471, 472]
-RIGHT_IRIS_CENTER = [468]
-
-
-"""Funkcje"""
-
+RIGHT_IRIS_CENTER = 468
 
 
 """Główny program"""
@@ -82,36 +79,27 @@ with mp_face_mesh.FaceMesh(
                 blink_flag = False
 
 
+            """Obliczanie współczynnika spojrzenia z wykorzystaniem
+               metody z różnicą odległości landmarków"""
+            left_iris_center = get_center_of_landmarks(left_iris_landmarks)
+            right_iris_center = get_center_of_landmarks(right_iris_landmarks)
+            #left_iris_center = (face_landmarks[LEFT_IRIS_CENTER].x, face_landmarks[LEFT_IRIS_CENTER].y)
+            #right_iris_center = (face_landmarks[LEFT_IRIS_CENTER].x, face_landmarks[LEFT_IRIS_CENTER].y)
 
-            """Wydzielenie obszarów oczu i wyodrębnienie źrenic"""
-            # TODO: add right eye region
-            left_eye_region = get_landmark_points_array(frame, face_landmarks, LEFT_EYE)
-            right_eye_region = get_landmark_points_array(frame, face_landmarks, RIGHT_EYE)
+            gaze_ratio_left_eye = get_gaze_ratio(face_landmarks, LEFT_EYE, left_iris_center)
+            gaze_ratio_right_eye = get_gaze_ratio(face_landmarks, RIGHT_EYE, right_iris_center)
+            gaze_ratio = (gaze_ratio_left_eye + gaze_ratio_right_eye) /2
+            print("gaze_ratio_left_eye", gaze_ratio)
 
-            # Nałożenie maski, żeby wyodrębnić dokładny kontur oka
-            mask = np.zeros((frame_height, frame_width), np.uint8)
-            cv2.polylines(mask, [left_eye_region], True, (255, 255, 255), 2)
-            cv2.fillPoly(mask, [left_eye_region], (255, 255, 255))
-            left_eye_frame = cv2.bitwise_and(gray_frame, gray_frame, mask=mask)
 
-            # Wydzielenie konturów regionu oka
-            min_x = np.min(left_eye_region[:, 0])
-            max_x = np.max(left_eye_region[:, 0])
-            min_y = np.min(left_eye_region[:, 1])
-            max_y = np.max(left_eye_region[:, 1])
 
-            # Wydzielenie i binaryzacja obrazu oka
-            gray_eye_frame = left_eye_frame[min_y:max_y, min_x:max_x]
-            #gray_eye_frame = cv2.GaussianBlur(gray_eye_frame, (3, 3), 0)
-            _, threshold_eye = cv2.threshold(gray_eye_frame, 100, 255, cv2.THRESH_BINARY)
+            """Obliczanie współcznnika spojrzenia z wykorzystaniem
+               metody z binaryzacją"""
+            # gaze_ratio_left_eye = get_gaze_ratio_binarise(frame, face_landmarks, LEFT_EYE, BINARIZATION_THRESHOLD)
+            # gaze_ratio_right_eye = get_gaze_ratio_binarise(frame, face_landmarks, RIGHT_EYE, BINARIZATION_THRESHOLD)
+            # gaze_ratio = (gaze_ratio_left_eye + gaze_ratio_right_eye) / 2
+            # print(gaze_ratio)
 
-            # Wyświetlanie oczu dla podglądu
-            threshold_eye = cv2.resize(threshold_eye, None, fx=7, fy=7)
-            eye_frame = cv2.resize(gray_eye_frame, None, fx=5, fy=5)
-            cv2.imshow("Podgląd oka (gray)", eye_frame)
-            cv2.imshow("Oko po binaryzacji", threshold_eye)
-
-            # TODO:
 
 
             """##########################################################
@@ -120,12 +108,12 @@ with mp_face_mesh.FaceMesh(
 
             """Rysowanie źrenic i obwódek oczu"""
             # draw_landmarks(final_frame_rgb, result)
-
-            # draw_eye_outline(final_frame_rgb, face_landmarks, LEFT_EYE, color=(255, 255, 255), thickness=1)
-            # draw_eye_outline(final_frame_rgb, face_landmarks, RIGHT_EYE, color=(255, 255, 255), thickness=1)
             #
-            # draw_eye_center(final_frame_rgb, left_iris_landmarks)
-            # draw_eye_center(final_frame_rgb, right_iris_landmarks)
+            draw_eye_outline(final_frame_rgb, face_landmarks, LEFT_EYE, color=(255, 255, 255), thickness=1)
+            draw_eye_outline(final_frame_rgb, face_landmarks, RIGHT_EYE, color=(255, 255, 255), thickness=1)
+            #
+            draw_eye_center(final_frame_rgb, left_iris_landmarks)
+            draw_eye_center(final_frame_rgb, right_iris_landmarks)
 
             """Spowrotem konwersja na BGR dla OpenCV dla ładnego wyświetlenia"""
             final_frame_bgr = cv2.cvtColor(final_frame_rgb, cv2.COLOR_RGB2BGR)
@@ -136,18 +124,19 @@ with mp_face_mesh.FaceMesh(
         """Wyświetlenie okna z odbiciem w pionie dla lepszej nawigacji (misc)
            Dodatkowo wypisanie kilku informacji bieżących"""
         debug_view = cv2.flip(final_frame_bgr, 1)
+
         cv2.putText(debug_view, f"L Iris Z: {left_iris_depth:.4f}", (20, 30),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
         cv2.putText(debug_view, f"R Iris Z: {right_iris_depth:.4f}", (20, 70),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
         if blink_flag:
-            cv2.putText(debug_view, f"Blinking: {blink_flag}", (20, 120), font, 0.6, (0,0,0),2 )
+            cv2.putText(debug_view, f"Blinking: {blink_flag}", (20, 110), font, 0.6, (0,0,0),2 )
 
         cv2.imshow("Z adnotacjami", debug_view)
         #cv2.imshow("Surowy obraz", cv2.flip(frame, 1))
 
         """Esc lub Q - wyłącza program"""
-        if (cv2.waitKey(1) & 0xFF == ord('q')) or (cv2.waitKey(1) & 0xFF == 27):
+        if cv2.waitKey(1) & 0xFF == 27:
             break
 
 
