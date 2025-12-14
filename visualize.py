@@ -29,16 +29,7 @@ def draw_eye_outline(image, landmarks, indices, color=(0, 255, 0), thickness=1):
     Mediapipe ma znormalizowane wartości [0,1] więc
     trzeba zmienić na wartości w pikselach
     """
-    h, w, _ = image.shape
-    points = []
-
-    for index in indices:
-        lm = landmarks[index]
-        x = int(lm.x * w)
-        y = int(lm.y * h)
-        points.append([x, y])
-
-    points = np.array(points, dtype=np.int32)
+    points = get_landmark_points_array(image, landmarks, indices)
     cv2.polylines(image, [points], isClosed=True, color=color, thickness=thickness)
 
 

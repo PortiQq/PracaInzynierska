@@ -1,3 +1,5 @@
+import cv2
+
 from visualize import *
 from calculateEAR import *
 
@@ -8,14 +10,14 @@ mp_face_mesh = mp.solutions.face_mesh   #468 punktów na twarzy
 font = cv2.FONT_HERSHEY_SIMPLEX
 
 blink_flag = False
-BLINK_THRESHOLD  = 7
+BLINK_THRESHOLD  = 10
 
 
 """Indeksy obwódki oka bardziej i mniej dokładne
    lewe oko: obrys od lewej strony dołem do prawej i spowrotem
    prawe oko: obrys od lewej górą do prawej i spowrotem"""
-# LEFT_EYE =[362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385,384, 398]
-# RIGHT_EYE=[33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161 , 246]
+# LEFT_EYE = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385,384, 398]
+# RIGHT_EYE= [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161 , 246]
 LEFT_EYE=[362, 385, 387, 263, 373, 380] # 1pkt po lewej, 2pkt na dole, 1pkt po prawej, 2pkt na górze
 RIGHT_EYE =[33, 160, 158, 133, 153, 144] # 1pkt po lewej, 2pkt na górze, 1pkt po prawej, 2pkt na dole
 
@@ -41,23 +43,26 @@ with mp_face_mesh.FaceMesh(
     min_tracking_confidence=0.5
 ) as face_mesh:
 
-
     while True:
+
         success, frame = webcam.read() # Odczyt z kamerki
         if not success:
             print("Ignoring empty camera frame")
             continue
+
         frame_height, frame_width, _ = frame.shape
+        gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) # MediaPipe używa RGB, a cv2  BGR
 
-        rgb_frame.flags.writeable = False # Dla poprawy wydajności: Sprawdzić?
+
+        rgb_frame.flags.writeable = False
         result = face_mesh.process(rgb_frame)
         rgb_frame.flags.writeable = True
+
 
         """Jeśli wykryto twarz na obrazie"""
         if result.multi_face_landmarks:
             face_landmarks = result.multi_face_landmarks[0].landmark
-
 
             """Znalezienie tylko źrenic i wartość ich głębokości w obrazie
                I wypisuję sobie na ekranie - może mi się te dane przydadzą"""
@@ -77,18 +82,50 @@ with mp_face_mesh.FaceMesh(
                 blink_flag = False
 
 
-            """##########################################################"""
+
+            """Wydzielenie obszarów oczu i wyodrębnienie źrenic"""
+            # TODO: add right eye region
+            left_eye_region = get_landmark_points_array(frame, face_landmarks, LEFT_EYE)
+            right_eye_region = get_landmark_points_array(frame, face_landmarks, RIGHT_EYE)
+
+            # Nałożenie maski, żeby wyodrębnić dokładny kontur oka
+            mask = np.zeros((frame_height, frame_width), np.uint8)
+            cv2.polylines(mask, [left_eye_region], True, (255, 255, 255), 2)
+            cv2.fillPoly(mask, [left_eye_region], (255, 255, 255))
+            left_eye_frame = cv2.bitwise_and(gray_frame, gray_frame, mask=mask)
+
+            # Wydzielenie konturów regionu oka
+            min_x = np.min(left_eye_region[:, 0])
+            max_x = np.max(left_eye_region[:, 0])
+            min_y = np.min(left_eye_region[:, 1])
+            max_y = np.max(left_eye_region[:, 1])
+
+            # Wydzielenie i binaryzacja obrazu oka
+            gray_eye_frame = left_eye_frame[min_y:max_y, min_x:max_x]
+            #gray_eye_frame = cv2.GaussianBlur(gray_eye_frame, (3, 3), 0)
+            _, threshold_eye = cv2.threshold(gray_eye_frame, 100, 255, cv2.THRESH_BINARY)
+
+            # Wyświetlanie oczu dla podglądu
+            threshold_eye = cv2.resize(threshold_eye, None, fx=7, fy=7)
+            eye_frame = cv2.resize(gray_eye_frame, None, fx=5, fy=5)
+            cv2.imshow("Podgląd oka (gray)", eye_frame)
+            cv2.imshow("Oko po binaryzacji", threshold_eye)
+
+            # TODO:
+
+
+            """##########################################################
+               ##########################################################"""
             final_frame_rgb = rgb_frame.copy() # Ostateczny obraz kamery
 
-
             """Rysowanie źrenic i obwódek oczu"""
-            draw_landmarks(final_frame_rgb, result)
+            # draw_landmarks(final_frame_rgb, result)
 
-            draw_eye_outline(final_frame_rgb, face_landmarks, LEFT_EYE, color=(255, 255, 255), thickness=1)
-            draw_eye_outline(final_frame_rgb, face_landmarks, RIGHT_EYE, color=(255, 255, 255), thickness=1)
-
-            draw_eye_center(final_frame_rgb, left_iris_landmarks)
-            draw_eye_center(final_frame_rgb, right_iris_landmarks)
+            # draw_eye_outline(final_frame_rgb, face_landmarks, LEFT_EYE, color=(255, 255, 255), thickness=1)
+            # draw_eye_outline(final_frame_rgb, face_landmarks, RIGHT_EYE, color=(255, 255, 255), thickness=1)
+            #
+            # draw_eye_center(final_frame_rgb, left_iris_landmarks)
+            # draw_eye_center(final_frame_rgb, right_iris_landmarks)
 
             """Spowrotem konwersja na BGR dla OpenCV dla ładnego wyświetlenia"""
             final_frame_bgr = cv2.cvtColor(final_frame_rgb, cv2.COLOR_RGB2BGR)

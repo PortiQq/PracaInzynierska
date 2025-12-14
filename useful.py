@@ -1,5 +1,5 @@
 import numpy as np
-from math import sqrt, hypot
+from math import hypot
 
 def get_distance(p1, p2):
     """
@@ -21,3 +21,18 @@ def get_landmark_px(image, landmark):
     h, w, _ = image.shape
     px_values = (int(landmark[0]*w), int(landmark[1]*h))
     return px_values
+
+
+def get_landmark_points_array(image, landmarks, indices):
+    """To samo co przy wizualizacji"""
+    points = []
+    h, w, _ = image.shape
+
+    for index in indices:
+        lm = landmarks[index]
+        x = int(lm.x * w)
+        y = int(lm.y * h)
+        points.append([x, y])
+
+    points = np.array(points, dtype=np.int32)
+    return points
