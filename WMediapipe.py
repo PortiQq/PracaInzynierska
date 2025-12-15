@@ -1,5 +1,3 @@
-import cv2
-
 from visualize import *
 from calculators import *
 
@@ -10,7 +8,7 @@ mp_face_mesh = mp.solutions.face_mesh   #468 punktów na twarzy
 font = cv2.FONT_HERSHEY_SIMPLEX
 
 blink_flag = False
-BLINK_THRESHOLD  = 10
+BLINK_THRESHOLD  = 0.20
 
 BINARIZATION_THRESHOLD = 110
 
@@ -61,19 +59,18 @@ with mp_face_mesh.FaceMesh(
         if result.multi_face_landmarks:
             face_landmarks = result.multi_face_landmarks[0].landmark
 
-            """Znalezienie tylko źrenic i wartość ich głębokości w obrazie
-               I wypisuję sobie na ekranie - może mi się te dane przydadzą"""
+            """Pobranie landmarków obrysu oczu"""
             left_eye_landmarks = [face_landmarks[i] for i in LEFT_EYE]
             right_eye_landmarks = [face_landmarks[i] for i in RIGHT_EYE]
             left_iris_landmarks = [face_landmarks[i] for i in LEFT_IRIS]    # [474:478]
             right_iris_landmarks = [face_landmarks[i] for i in RIGHT_IRIS]  # [469:473]
 
-            left_iris_depth = left_iris_landmarks[0].z
-            right_iris_depth = right_iris_landmarks[0].z
+            #left_iris_depth = left_iris_landmarks[0].z
+            #right_iris_depth = right_iris_landmarks[0].z
 
             """Wykrywanie mrugnięć"""
             blink_ratio = get_blink_ratio(face_landmarks, frame)
-            if blink_ratio > BLINK_THRESHOLD:
+            if blink_ratio < BLINK_THRESHOLD:
                 blink_flag = True
             else:
                 blink_flag = False
@@ -83,23 +80,10 @@ with mp_face_mesh.FaceMesh(
                metody z różnicą odległości landmarków"""
             left_iris_center = get_center_of_landmarks(left_iris_landmarks)
             right_iris_center = get_center_of_landmarks(right_iris_landmarks)
-            #left_iris_center = (face_landmarks[LEFT_IRIS_CENTER].x, face_landmarks[LEFT_IRIS_CENTER].y)
-            #right_iris_center = (face_landmarks[LEFT_IRIS_CENTER].x, face_landmarks[LEFT_IRIS_CENTER].y)
 
-            gaze_ratio_left_eye = get_gaze_ratio(face_landmarks, LEFT_EYE, left_iris_center)
-            gaze_ratio_right_eye = get_gaze_ratio(face_landmarks, RIGHT_EYE, right_iris_center)
-            gaze_ratio = (gaze_ratio_left_eye + gaze_ratio_right_eye) /2
-            print("gaze_ratio_left_eye", gaze_ratio)
-
-
-
-            """Obliczanie współcznnika spojrzenia z wykorzystaniem
-               metody z binaryzacją"""
-            # gaze_ratio_left_eye = get_gaze_ratio_binarise(frame, face_landmarks, LEFT_EYE, BINARIZATION_THRESHOLD)
-            # gaze_ratio_right_eye = get_gaze_ratio_binarise(frame, face_landmarks, RIGHT_EYE, BINARIZATION_THRESHOLD)
-            # gaze_ratio = (gaze_ratio_left_eye + gaze_ratio_right_eye) / 2
-            # print(gaze_ratio)
-
+            l_relative_x, l_relative_y = get_relative_iris_coords(left_eye_landmarks, left_iris_center)
+            r_relative_x, r_relative_y = get_relative_iris_coords(right_eye_landmarks, right_iris_center)
+            print(f"L Eye: ({l_relative_x:.2f}, {l_relative_y:.2f}) | R Eye: ({r_relative_x:.2f}, {r_relative_y:.2f})")
 
 
             """##########################################################
@@ -125,10 +109,14 @@ with mp_face_mesh.FaceMesh(
            Dodatkowo wypisanie kilku informacji bieżących"""
         debug_view = cv2.flip(final_frame_bgr, 1)
 
-        cv2.putText(debug_view, f"L Iris Z: {left_iris_depth:.4f}", (20, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-        cv2.putText(debug_view, f"R Iris Z: {right_iris_depth:.4f}", (20, 70),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        # cv2.putText(debug_view, f"L Iris Z: {left_iris_depth:.4f}", (20, 30),
+        #             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        # cv2.putText(debug_view, f"R Iris Z: {right_iris_depth:.4f}", (20, 70),
+        #             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        cv2.putText(debug_view, f"L Rel: {l_relative_x:.2f}, {l_relative_y:.2f}", (20, 150),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+        cv2.putText(debug_view, f"R Rel: {r_relative_x:.2f}, {r_relative_y:.2f}", (20, 170),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
         if blink_flag:
             cv2.putText(debug_view, f"Blinking: {blink_flag}", (20, 110), font, 0.6, (0,0,0),2 )
 
@@ -136,7 +124,7 @@ with mp_face_mesh.FaceMesh(
         #cv2.imshow("Surowy obraz", cv2.flip(frame, 1))
 
         """Esc lub Q - wyłącza program"""
-        if cv2.waitKey(1) & 0xFF == 27:
+        if cv2.waitKey(100) & 0xFF == 27:
             break
 
 

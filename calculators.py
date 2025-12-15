@@ -1,11 +1,49 @@
-import cv2
-
 from useful import *
+
+
+def get_relative_iris_coords(eye_landmarks, iris_center):
+    """
+    Oblicza znormalizowaną pozycję źrenicy względem obrysu oka.
+
+    Argumenty:
+    eye_landmarks: lista obiektów landmarków (np. punkty konturu oka)
+    iris_center: krotka (x, y) oznaczająca środek źrenicy (z get_center_of_landmarks)
+
+    Zwraca:
+    (rel_x, rel_y): gdzie (0.5, 0.5) to środek oka, (0,0) lewy górny róg, (1,1) prawy dolny.
+    """
+
+    # Wspołrzędne landmarków obrysu oka
+    eye_xs = [lm.x for lm in eye_landmarks]
+    eye_ys = [lm.y for lm in eye_landmarks]
+
+    # Granice bounding box oka
+    min_x = min(eye_xs)
+    max_x = max(eye_xs)
+    min_y = min(eye_ys)
+    max_y = max(eye_ys)
+
+    eye_width = max_x - min_x
+    eye_height = max_y - min_y
+
+    if eye_width == 0 or eye_height == 0:   # Dzielenie przez 0
+        return 0.5, 0.5
+
+    # Normalizacja: (Wartość - Minimum) / Rozpiętość
+    rel_x = (iris_center[0] - min_x) / eye_width
+    rel_y = (iris_center[1] - min_y) / eye_height
+
+    return rel_x, rel_y
+
 
 def get_blink_ratio(landmarks, frame):
     """
     Współczynnik otwarcia oczu (EAR - Eye Aspect Ratio).
+    EAR = (|p2-p6| + |p3-p5|) / (2 * |p1-p4|)
     Zwraca średnią wartość dla obu oczu.
+    Wartości typowe:
+    - Oko otwarte: 0.20 - 0.35
+    - Oko zamknięte (mrugnięcie): < 0.20
     """
     h, w, _ = frame.shape
 
@@ -22,14 +60,17 @@ def get_blink_ratio(landmarks, frame):
 
     left_eye_top_1 = get_coords(380)
     left_eye_top_2 = get_coords(373)
-    left_eye_top = ((left_eye_top_1[0] + left_eye_top_2[0]) // 2, (left_eye_top_1[1] + left_eye_top_2[1]) // 2)
 
     left_eye_bottom_1 = get_coords(385)
     left_eye_bottom_2 = get_coords(387)
-    left_eye_bottom = ((left_eye_bottom_1[0] + left_eye_bottom_2[0]) // 2, (left_eye_bottom_1[1] + left_eye_bottom_2[1]) // 2)
 
+    left_eye_vertical_length_1 = get_distance(left_eye_top_1, left_eye_bottom_1)
+    left_eye_vertical_length_2 = get_distance(left_eye_top_2, left_eye_bottom_2)
     left_eye_horizontal_length = get_distance(left_eye_left, left_eye_right)
-    left_eye_vertical_length = get_distance(left_eye_top, left_eye_bottom)
+
+    # Wzór EAR dla lewego oka
+    # Dodajemy małą stałą (1e-6) w mianowniku, by uniknąć dzielenia przez zero
+    left_ear = (left_eye_vertical_length_1 + left_eye_vertical_length_2) / (2.0 * left_eye_horizontal_length + 1e-6)
 
     """Obliczenia dla prawego oka, odległości poziome i pionowe
        środki pionowe jako średnie dwóch punktów"""
@@ -38,89 +79,18 @@ def get_blink_ratio(landmarks, frame):
 
     right_eye_top_1 = get_coords(160)
     right_eye_top_2 = get_coords(158)
-    right_eye_top = ((right_eye_top_1[0] + right_eye_top_2[0]) // 2, (right_eye_top_1[1] + right_eye_top_2[1]) // 2)
 
     right_eye_bot_1 = get_coords(153)
     right_eye_bot_2 = get_coords(144)
-    right_eye_bot = ((right_eye_bot_1[0] + right_eye_bot_2[0]) // 2, (right_eye_bot_1[1] + right_eye_bot_2[1]) // 2)
 
+    right_eye_vertical_length_1 = get_distance(right_eye_top_1, right_eye_bot_1)
+    right_eye_vertical_length_2 = get_distance(right_eye_top_2, right_eye_bot_2)
     right_eye_horizontal_length = get_distance(right_eye_left, right_eye_right)
-    right_eye_vertical_length = get_distance(right_eye_top, right_eye_bot)
 
+    right_ear = (right_eye_vertical_length_1 + right_eye_vertical_length_2) / (2.0 * right_eye_horizontal_length + 1e-6)
 
-    left_ratio = left_eye_horizontal_length / (left_eye_vertical_length + 0.001)
-    right_ratio = right_eye_horizontal_length / (right_eye_vertical_length + 0.001)
-    ratio = (left_ratio + right_ratio) / 2
+    ear_avg = (left_ear + right_ear) / 2.0
 
-    return ratio
+    return ear_avg
 
-
-def get_gaze_ratio(face_landmarks, eye_points, iris_center):
-    """
-    eye_points: [] tablica punktów obrysu oka
-    iris_center: (x, y) środka źrenicy
-    """
-    left_corner_index = find_farthest_landmark_index(face_landmarks, eye_points, "left")
-    right_corner_index = find_farthest_landmark_index(face_landmarks, eye_points, "right")
-
-    left_corner = (face_landmarks[left_corner_index].x, face_landmarks[left_corner_index].y)
-    right_corner = (face_landmarks[right_corner_index].x, face_landmarks[right_corner_index].y)
-
-    dist_to_left_corner = get_distance(left_corner, iris_center)
-    dist_to_right_corner = get_distance(right_corner, iris_center)
-
-    # Zabezpieczenie przed dzieleniem przez zero
-    if dist_to_right_corner == 0:
-        return 1.0
-
-    ratio = dist_to_left_corner / dist_to_right_corner
-    return ratio
-
-
-def get_gaze_ratio_binarise(frame, face_landmarks, eye_points, binarisation_threshold):
-    """Wydzielenie obszarów oczu i wyodrębnienie źrenic
-       z wykorzystaniem binaryzacji obrazu"""
-
-    frame_height, frame_width = frame.shape[:2]
-    gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    eye_region = get_np_array_of_landmarks(frame, face_landmarks, eye_points)
-
-    # Nałożenie maski, żeby wyodrębnić dokładny kontur oka
-    mask = np.zeros((frame_height, frame_width), np.uint8)
-    cv2.polylines(mask, [eye_region], True, (255, 255, 255), 2)
-    cv2.fillPoly(mask, [eye_region], (255, 255, 255))
-    eye_frame = cv2.bitwise_and(gray_frame, gray_frame, mask=mask)
-
-    # Wydzielenie konturów regionu oka
-    min_x = np.min(eye_region[:, 0])
-    max_x = np.max(eye_region[:, 0])
-    min_y = np.min(eye_region[:, 1])
-    max_y = np.max(eye_region[:, 1])
-
-    # Wydzielenie i binaryzacja obrazu oka
-    gray_eye_frame = eye_frame[min_y:max_y, min_x:max_x]
-    gray_eye_frame = cv2.GaussianBlur(gray_eye_frame, (3, 3), 0)  # Filtr gaussa przy słabej jakości obrazu
-    _, threshold_eye = cv2.threshold(gray_eye_frame, binarisation_threshold, 255, cv2.THRESH_BINARY)
-
-    height, width = threshold_eye.shape
-    left_side_threshold = threshold_eye[0: height, 0: int(width / 2)]
-    left_side_white = cv2.countNonZero(left_side_threshold)
-
-    right_side_threshold = threshold_eye[0: height, int(width / 2): width]
-    right_side_white = cv2.countNonZero(right_side_threshold)
-
-    gaze_ratio = left_side_white / (right_side_white + 0.001)
-
-    """Wizualizacja (tylko dla podglądu co się dzieje"""
-    # threshold_eye = cv2.resize(threshold_eye, None, fx=7, fy=7)
-    # eye_frame = cv2.resize(gray_eye_frame, None, fx=5, fy=5)
-    # left_side_threshold = cv2.resize(left_side_threshold, None, fx=5, fy=5)
-    # right_side_threshold = cv2.resize(right_side_threshold, None, fx=5, fy=5)
-    # cv2.imshow("Podgląd oka (gray)", eye_frame)
-    # cv2.imshow("Oko po binaryzacji", threshold_eye)
-    # cv2.imshow("Lewe oko lewa strona", left_side_threshold)
-    # cv2.imshow("Lewe oko Prawa strona", right_side_threshold)
-
-
-    return gaze_ratio
 
