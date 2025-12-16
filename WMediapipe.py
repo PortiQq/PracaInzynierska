@@ -99,6 +99,8 @@ with mp_face_mesh.FaceMesh(
             """Obliczenie pozycji głowy"""
             (pitch, yaw, roll), rotation_vector, translation_vector, camera_matrix = get_head_pose(frame, face_landmarks)
 
+
+            """Zapisywanie danych"""
             if not blink_flag:
                 pass
                 # print(f"L Eye: ({l_relative_x:.2f}, {l_relative_y:.2f}) | R Eye: ({r_relative_x:.2f}, {r_relative_y:.2f})")
