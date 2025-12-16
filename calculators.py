@@ -1,4 +1,5 @@
 from useful import *
+import cv2
 
 
 def get_relative_iris_coords(eye_landmarks, iris_center):
@@ -10,7 +11,7 @@ def get_relative_iris_coords(eye_landmarks, iris_center):
     iris_center: krotka (x, y) oznaczająca środek źrenicy (z get_center_of_landmarks)
 
     Zwraca:
-    (rel_x, rel_y): gdzie (0.5, 0.5) to środek oka, (0,0) lewy górny róg, (1,1) prawy dolny.
+    (rel_x, rel_y): (0.5, 0.5) - środek oka, (0,0) - lewy górny róg, (1,1) - prawy dolny róg
     """
 
     # Wspołrzędne landmarków obrysu oka
@@ -36,6 +37,70 @@ def get_relative_iris_coords(eye_landmarks, iris_center):
     return rel_x, rel_y
 
 
+
+def get_head_pose(frame, face_landmarks):
+    """
+    Oblicza orientację głowy (Pitch, Yaw, Roll) wykorzystując algorytm PnP.
+    Zwraca kąty w stopniach oraz wektor rotacji i translacji (do wizualizacji).
+    """
+    height, width, _ = frame.shape
+
+    # Standardowy model 3D twarzy
+    # Współrzędne w milimetrach, arbitralne
+    face_3d = np.array([
+        [0.0, 0.0, 0.0],  # Nose tip (4)
+        [0.0, -330.0, -65.0],  # Chin (152)
+        [-225.0, 170.0, -135.0],  # Left eye left corner (33)
+        [225.0, 170.0, -135.0],  # Right eye right corner (263)
+        [-150.0, -150.0, -125.0],  # Left Mouth corner (61)
+        [150.0, -150.0, -125.0]  # Right mouth corner (291)
+    ], dtype=np.float64)
+
+    # Odpowiadające punkty 2D z MediaPipe
+    face_2d = []
+    for idx in [4, 152, 33, 263, 61, 291]:
+        lm = face_landmarks[idx]
+        x, y = int(lm.x * width), int(lm.y * height)
+        face_2d.append([x, y])
+    face_2d = np.array(face_2d, dtype=np.float64)
+
+    # Macierz kamery (przybliżona)
+    # TODO: wczytanie danych kalibracji kamery przed rozpoczęciem programu???
+    focal_length = 1 * width
+    camera_matrix = np.array([
+        [focal_length, 0, height / 2],
+        [0, focal_length, width / 2],
+        [0, 0, 1]
+    ])
+
+    # Macierz dystorsji (jako 0 dla uproszczenia)
+    distortion_matrix = np.zeros((4, 1), dtype=np.float64)
+
+    success, rotation_vector, translation_vector = cv2.solvePnP(face_3d, face_2d, camera_matrix, distortion_matrix)
+
+    # Konwersja wektora rotacji na kąty Eulera
+    rotation_matrix, _ = cv2.Rodrigues(rotation_vector)
+    angles, _, _, _, _, _ = cv2.RQDecomp3x3(rotation_matrix)
+
+    # angles: [pitch, yaw, roll]
+    x = angles[0]
+    y = angles[1]
+    z = angles[2]
+
+    """Korekta kąta pitch - przesunięcie wartości o 180 stopni
+       oraz odwrócenie osi pitch: ujemne -> dół, dodatnie -> góra
+       oraz roll: ujemne -> w lewo, dodatnie -> w prawo """
+    if x > 0:
+        x -= 180
+    else:
+        x += 180
+    x = -x
+    z = -z
+
+    return (x, y, z), rotation_vector, translation_vector, camera_matrix
+
+
+
 def get_blink_ratio(landmarks, frame):
     """
     Współczynnik otwarcia oczu (EAR - Eye Aspect Ratio).
@@ -43,7 +108,7 @@ def get_blink_ratio(landmarks, frame):
     Zwraca średnią wartość dla obu oczu.
     Wartości typowe:
     - Oko otwarte: 0.20 - 0.35
-    - Oko zamknięte (mrugnięcie): < 0.20
+    - Oko zamknięte: < 0.20
     """
     h, w, _ = frame.shape
 
@@ -68,9 +133,8 @@ def get_blink_ratio(landmarks, frame):
     left_eye_vertical_length_2 = get_distance(left_eye_top_2, left_eye_bottom_2)
     left_eye_horizontal_length = get_distance(left_eye_left, left_eye_right)
 
-    # Wzór EAR dla lewego oka
-    # Dodajemy małą stałą (1e-6) w mianowniku, by uniknąć dzielenia przez zero
-    left_ear = (left_eye_vertical_length_1 + left_eye_vertical_length_2) / (2.0 * left_eye_horizontal_length + 1e-6)
+    # Eye Aspect Ratio lewego oka
+    left_ear = (left_eye_vertical_length_1 + left_eye_vertical_length_2) / (2.0 * left_eye_horizontal_length + 1e-6)  # + 1e-6 dla uniknięcia dzielenia przez zero
 
     """Obliczenia dla prawego oka, odległości poziome i pionowe
        środki pionowe jako średnie dwóch punktów"""
@@ -87,6 +151,7 @@ def get_blink_ratio(landmarks, frame):
     right_eye_vertical_length_2 = get_distance(right_eye_top_2, right_eye_bot_2)
     right_eye_horizontal_length = get_distance(right_eye_left, right_eye_right)
 
+    # Eye Aspect Ratio lewego oka
     right_ear = (right_eye_vertical_length_1 + right_eye_vertical_length_2) / (2.0 * right_eye_horizontal_length + 1e-6)
 
     ear_avg = (left_ear + right_ear) / 2.0

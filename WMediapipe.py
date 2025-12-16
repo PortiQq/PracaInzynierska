@@ -1,3 +1,5 @@
+import csv
+import time
 from visualize import *
 from calculators import *
 
@@ -8,9 +10,22 @@ mp_face_mesh = mp.solutions.face_mesh   #468 punktów na twarzy
 font = cv2.FONT_HERSHEY_SIMPLEX
 
 blink_flag = False
-BLINK_THRESHOLD  = 0.20
+BLINK_THRESHOLD  = 0.25
 
-BINARIZATION_THRESHOLD = 110
+training_data = [] # [lx, ly, rx, ry, h_pitch, h_yaw, h_roll, screen_x, screen_y]
+record_flag = False
+
+"""Konfiguracja kalibracji
+Punkty kalibracyjne: siatka 3x3 na ekranie 
+(Znormalizowane 0.0-1.0)"""
+
+CALIBRATION_POINTS = [
+    (0.05, 0.05), (0.5, 0.05), (0.95, 0.05),
+    (0.05, 0.5),  (0.5, 0.5),  (0.95, 0.5),
+    (0.05, 0.95), (0.5, 0.95), (0.95, 0.95)
+]
+calibration_point_index = 0
+
 
 """Indeksy obwódki oka bardziej i mniej dokładne
    lewe oko: obrys od lewej strony dołem do prawej i spowrotem
@@ -49,7 +64,7 @@ with mp_face_mesh.FaceMesh(
         gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) # MediaPipe używa RGB, a cv2  BGR
 
-
+        """Przetwarzanie obrazu - wykrycie twarzy"""
         rgb_frame.flags.writeable = False
         result = face_mesh.process(rgb_frame)
         rgb_frame.flags.writeable = True
@@ -65,9 +80,6 @@ with mp_face_mesh.FaceMesh(
             left_iris_landmarks = [face_landmarks[i] for i in LEFT_IRIS]    # [474:478]
             right_iris_landmarks = [face_landmarks[i] for i in RIGHT_IRIS]  # [469:473]
 
-            #left_iris_depth = left_iris_landmarks[0].z
-            #right_iris_depth = right_iris_landmarks[0].z
-
             """Wykrywanie mrugnięć"""
             blink_ratio = get_blink_ratio(face_landmarks, frame)
             if blink_ratio < BLINK_THRESHOLD:
@@ -76,14 +88,25 @@ with mp_face_mesh.FaceMesh(
                 blink_flag = False
 
 
-            """Obliczanie współczynnika spojrzenia z wykorzystaniem
-               metody z różnicą odległości landmarków"""
+            """Obliczanie współrzędnych spojrzenia 
+               relatywnie do bounding boxa oka"""
             left_iris_center = get_center_of_landmarks(left_iris_landmarks)
             right_iris_center = get_center_of_landmarks(right_iris_landmarks)
 
             l_relative_x, l_relative_y = get_relative_iris_coords(left_eye_landmarks, left_iris_center)
             r_relative_x, r_relative_y = get_relative_iris_coords(right_eye_landmarks, right_iris_center)
-            print(f"L Eye: ({l_relative_x:.2f}, {l_relative_y:.2f}) | R Eye: ({r_relative_x:.2f}, {r_relative_y:.2f})")
+
+            """Obliczenie pozycji głowy"""
+            (pitch, yaw, roll), rotation_vector, translation_vector, camera_matrix = get_head_pose(frame, face_landmarks)
+
+            if not blink_flag:
+                pass
+                # print(f"L Eye: ({l_relative_x:.2f}, {l_relative_y:.2f}) | R Eye: ({r_relative_x:.2f}, {r_relative_y:.2f})")
+                # TODO: Dodawanie danych położenia oka do zbioru danych
+            else:
+                pass
+                # print("Blink detected")
+                # TODO: Obsługa mrugnięcia (dodawanie informacji o mrugnięciu?)
 
 
             """##########################################################
@@ -99,8 +122,13 @@ with mp_face_mesh.FaceMesh(
             draw_eye_center(final_frame_rgb, left_iris_landmarks)
             draw_eye_center(final_frame_rgb, right_iris_landmarks)
 
+            """Wyświetlenie osi obrotu głowy"""
+            cv2.drawFrameAxes(final_frame_rgb, camera_matrix, np.zeros((4, 1)), rotation_vector, translation_vector, length=100,thickness=2)
+
             """Spowrotem konwersja na BGR dla OpenCV dla ładnego wyświetlenia"""
             final_frame_bgr = cv2.cvtColor(final_frame_rgb, cv2.COLOR_RGB2BGR)
+
+
         else:
             final_frame_bgr = frame # Jeśli nie wykryło twarzy -> czysty obraz z kamery
 
@@ -108,23 +136,21 @@ with mp_face_mesh.FaceMesh(
         """Wyświetlenie okna z odbiciem w pionie dla lepszej nawigacji (misc)
            Dodatkowo wypisanie kilku informacji bieżących"""
         debug_view = cv2.flip(final_frame_bgr, 1)
-
-        # cv2.putText(debug_view, f"L Iris Z: {left_iris_depth:.4f}", (20, 30),
-        #             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-        # cv2.putText(debug_view, f"R Iris Z: {right_iris_depth:.4f}", (20, 70),
-        #             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
         cv2.putText(debug_view, f"L Rel: {l_relative_x:.2f}, {l_relative_y:.2f}", (20, 150),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
         cv2.putText(debug_view, f"R Rel: {r_relative_x:.2f}, {r_relative_y:.2f}", (20, 170),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
         if blink_flag:
             cv2.putText(debug_view, f"Blinking: {blink_flag}", (20, 110), font, 0.6, (0,0,0),2 )
+        if 'pitch' in locals():
+            cv2.putText(debug_view, f"Pitch: {pitch:.0f}", (20, 210), font, 0.6, (0, 255, 255), 2)
+            cv2.putText(debug_view, f"Yaw:   {yaw:.0f}", (20, 250), font, 0.6, (0, 255, 255), 2)
+            cv2.putText(debug_view, f"Roll:  {roll:.0f}", (20, 290), font, 0.6, (0, 255, 255), 2)
 
         cv2.imshow("Z adnotacjami", debug_view)
-        #cv2.imshow("Surowy obraz", cv2.flip(frame, 1))
 
-        """Esc lub Q - wyłącza program"""
-        if cv2.waitKey(100) & 0xFF == 27:
+        """Esc - wyłącza program"""
+        if cv2.waitKey(1) & 0xFF == 27:
             break
 
 

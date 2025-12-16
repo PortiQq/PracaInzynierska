@@ -1,6 +1,24 @@
 import cv2
 import numpy as np
-from useful import find_farthest_landmark_index, get_distance, get_np_array_of_landmarks
+from useful import get_distance, get_np_array_of_landmarks
+
+
+def find_farthest_landmark_index(landmarks, indices_list, direction):
+    """
+    Znalezienie indeksu punktu wysuniętego najbardziej w lewo lub w prawo
+    direction: 'left' / 'right'
+    :returns index of farthest landmark
+    !!!Przydatne tylko przy zmienianiu listy landmarków!!!
+    """
+    if direction == 'left':
+        return min(indices_list, key=lambda i: landmarks[i].x)
+
+    elif direction == 'right':
+        return max(indices_list, key=lambda i: landmarks[i].x)
+
+    else:
+        raise ValueError("Direction must be 'left' or 'right'")
+
 
 def get_gaze_ratio(face_landmarks, eye_points, iris_center):
     """
@@ -69,4 +87,3 @@ def get_gaze_ratio_binarise(frame, face_landmarks, eye_points, binarisation_thre
     # cv2.imshow("Lewe oko Prawa strona", right_side_threshold)
 
     return gaze_ratio
-

@@ -10,7 +10,7 @@ def get_distance(p1, p2):
 
 def get_center_of_landmarks(landmarks):
     """
-    Obliczenie środka punktów
+    Obliczenie koordynatów środka punktów
     """
     x_coords = [lm.x for lm in landmarks]
     y_coords = [lm.y for lm in landmarks]
@@ -38,20 +38,3 @@ def get_np_array_of_landmarks(frame, landmarks, indices):
 
     points = np.array(points, dtype=np.int32)
     return points
-
-
-def find_farthest_landmark_index(landmarks, indices_list, direction):
-    """
-    Znalezienie indeksu punktu wysuniętego
-    najbardziej w lewo lub w prawo
-    direction: 'left' / 'right'
-    :returns index of farthest landmark
-    """
-    if direction == 'left':
-        return min(indices_list, key=lambda i: landmarks[i].x)
-
-    elif direction == 'right':
-        return max(indices_list, key=lambda i: landmarks[i].x)
-
-    else:
-        raise ValueError("Direction must be 'left' or 'right'")
