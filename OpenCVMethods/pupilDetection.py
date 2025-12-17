@@ -6,7 +6,7 @@ eye_cascade = cv2.CascadeClassifier('../data/haarcascade_eye.xml')
 
 def detect_pupil(eye_frame, threshold):
     """
-    Finds the center of the pupil within an eye frame using thresholding.
+    Wykrywa źrenicy/tęczówki przy użyciu progowania
     Returns: (cx, cy) of the pupil, or None if not found.
     """
     rows, cols, _ = eye_frame.shape
@@ -34,3 +34,79 @@ def detect_pupil(eye_frame, threshold):
 
     return None, threshold
 
+
+def detect_pupil_hough(eye_frame, edge_detection_threshold, accumulator_threshold):
+    """
+    Wykrywa źrenicę/tęczówkę używając Transformaty Hougha dla okręgów.
+    Zwraca: (cx, cy) środka, oraz obraz do wizualizacji (z narysowanym okręgiem).
+    """
+    output_frame = eye_frame.copy()
+
+    gray_eye = cv2.cvtColor(eye_frame, cv2.COLOR_BGR2GRAY)
+
+    # 2. Rozmycie - usunięcie szumu z zachowaniem krawędzi
+    gray_eye = cv2.medianBlur(gray_eye, 5)
+
+    rows = gray_eye.shape[0]
+
+    # Transformata Hougha
+    circles = cv2.HoughCircles(
+        gray_eye,
+        cv2.HOUGH_GRADIENT,
+        dp=1,  # Rozdzielczość akumulatora (1 = taka sama jak obrazu)
+        minDist=rows / 8,  # Minimalna odległość między środkami wykrytych okręgów
+        param1=edge_detection_threshold,  # Górny próg detektora krawędzi Canny'ego
+        param2=accumulator_threshold,  # Próg akumulatora (im mniejszy, tym więcej fałszywych kół wykryje)
+        minRadius=int(rows / 10),  # Minimalny promień (żeby nie łapał szumu)
+        maxRadius=int(rows / 2)  # Maksymalny promień (żeby nie łapał całego oczodołu)
+    )
+
+    detected_center = None
+
+    if circles is not None:
+        circles = np.uint16(np.around(circles))
+
+        # Pierwszy znaleziony okrąg
+        for i in circles[0, :]:
+            center = (i[0], i[1])
+            radius = i[2]
+            # Zewnętrzny okrąg
+            cv2.circle(output_frame, center, radius, (255, 0, 255), 2)
+            # Środek koła
+            cv2.circle(output_frame, center, 2, (0, 0, 255), 3)
+
+            detected_center = center
+            # Przerwanie po wzięciu największego okręgu
+            break
+
+    return detected_center, output_frame
+
+
+def detect_pupil_template(eye_roi):
+    global template
+
+    # Przy braku wzorca pobranie go ze środka roi oka
+    # Przez wycięcie
+    if template is None:
+        h, w = eye_roi.shape[:2]
+        center_x, center_y = w // 2, h // 2
+        margin = 5
+        template = eye_roi[center_y - margin:center_y + margin, center_x - margin:center_x + margin]
+        return (center_x, center_y), eye_roi
+
+    # 2. Szukanie wzorca
+    # Metoda TM_CCOEFF_NORMED jest zazwyczaj najlepsza
+    res = cv2.matchTemplate(eye_roi, template, cv2.TM_CCOEFF_NORMED)
+
+    # Znajdź lokalizację najlepszego dopasowania
+    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
+
+    # max_loc to lewy górny róg dopasowania
+    top_left = max_loc
+    h_t, w_t = template.shape[:2]
+
+    # Oblicz środek
+    cx = top_left[0] + w_t // 2
+    cy = top_left[1] + h_t // 2
+
+    return (cx, cy), eye_roi
