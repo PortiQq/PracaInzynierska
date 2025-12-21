@@ -16,7 +16,7 @@ face_cascade = cv2.CascadeClassifier('../data/haarcascade_frontalface_default.xm
 eye_cascade = cv2.CascadeClassifier('../data/haarcascade_eye.xml')
 
 """Switch do wyboru metody śledzenia"""
-method = 2
+method = 1
 
 if method == 1:
     cv2.namedWindow("Eye tracking")

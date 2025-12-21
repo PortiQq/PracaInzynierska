@@ -1,30 +1,21 @@
 import csv
 import time
+from pyautogui import size
 from visualize import *
 from calculators import *
+
 
 """Inicjalizacja mediapipowych rzeczy"""
 mp_face_mesh = mp.solutions.face_mesh   #468 punktów na twarzy
 
-"""Zmienne i flagi"""
+
+"""Czcionka"""
 font = cv2.FONT_HERSHEY_SIMPLEX
 
+
+"""Zmienne dot. wykrywania mrugnięć"""
 blink_flag = False
 BLINK_THRESHOLD  = 0.25
-
-training_data = [] # [lx, ly, rx, ry, h_pitch, h_yaw, h_roll, screen_x, screen_y]
-record_flag = False
-
-"""Konfiguracja kalibracji
-Punkty kalibracyjne: siatka 3x3 na ekranie 
-(Znormalizowane 0.0-1.0)"""
-
-CALIBRATION_POINTS = [
-    (0.05, 0.05), (0.5, 0.05), (0.95, 0.05),
-    (0.05, 0.5),  (0.5, 0.5),  (0.95, 0.5),
-    (0.05, 0.95), (0.5, 0.95), (0.95, 0.95)
-]
-calibration_point_index = 0
 
 
 """Indeksy obwódki oka bardziej i mniej dokładne
@@ -41,6 +32,34 @@ LEFT_IRIS_CENTER = 473
 RIGHT_IRIS = [469, 470, 471, 472]
 RIGHT_IRIS_CENTER = 468
 
+"""Konfiguracja kalibracji
+Punkty kalibracyjne: siatka 3x3 na ekranie 
+(Znormalizowane 0.0-1.0)"""
+
+screen_width, screen_height = size()
+CALIBRATION_POINTS = [
+    (0.05, 0.05), (0.5, 0.05), (0.95, 0.05),
+    (0.05, 0.5),  (0.5, 0.5),  (0.95, 0.5),
+    (0.05, 0.95), (0.5, 0.95), (0.95, 0.95)
+]
+calibration_point_index = 0
+calibration_flag = False
+samples_per_point = 20  # Ile klatek zbieramy dla jednego punktu
+current_samples = 0
+
+training_data = [] # [lx, ly, rx, ry, h_pitch, h_yaw, h_roll, screen_x, screen_y]
+
+# Plik do zapisu danych kalibracyjnych
+calibration_data_file = "data/calibration_data.csv"
+
+# Nagłówki pliku CSV
+with open(calibration_data_file, mode='w', newline='') as f:
+    writer = csv.writer(f)
+    writer.writerow(['target_x', 'target_y', 'l_rel_x', 'l_rel_y', 'r_rel_x', 'r_rel_y', 'pitch', 'yaw', 'roll'])
+
+# Tworzenie okna kalibracji
+cv2.namedWindow("Calibration", cv2.WND_PROP_FULLSCREEN)
+cv2.setWindowProperty("Calibration", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
 """Główny program"""
 
@@ -96,22 +115,42 @@ with mp_face_mesh.FaceMesh(
             l_relative_x, l_relative_y = get_relative_iris_coords(left_eye_landmarks, left_iris_center)
             r_relative_x, r_relative_y = get_relative_iris_coords(right_eye_landmarks, right_iris_center)
 
+
             """Obliczenie pozycji głowy"""
             (pitch, yaw, roll), rotation_vector, translation_vector, camera_matrix = get_head_pose(frame, face_landmarks)
 
 
-            """Zapisywanie danych"""
-            if not blink_flag:
-                pass
-                # print(f"L Eye: ({l_relative_x:.2f}, {l_relative_y:.2f}) | R Eye: ({r_relative_x:.2f}, {r_relative_y:.2f})")
-                # TODO: Dodawanie danych położenia oka do zbioru danych
+            """Przeprowadzanie kalibracji"""
+            calibration_frame = np.zeros((screen_height, screen_width, 3), dtype=np.uint8)
+
+            if calibration_point_index < len(CALIBRATION_POINTS):
+                point = CALIBRATION_POINTS[calibration_point_index]
+                point_x = int(point[0] * calibration_frame.shape[1])
+                point_y = int(point[1] * calibration_frame.shape[0])
+
+                # Rysowanie punktu kalibracyjnego (zielony -> zbieranie danych, czerwony -> oczekiwanie na klawisz)
+                color = (0, 255, 0) if calibration_flag else (0, 0, 255)
+                cv2.circle(calibration_frame, (point_x, point_y), 20, color, -1)
+                cv2.putText(calibration_frame, "Patrz na punkt i nacisnij SPACE", (150, 50), font, 1, (255, 255, 255), 2)
+
+                """Zapisywanie danych"""
+                if calibration_flag and not blink_flag:
+                    with open(calibration_data_file, mode='a', newline='') as f:
+                        writer = csv.writer(f)
+                        writer.writerow(
+                            [point[0], point[1], l_relative_x, l_relative_y, r_relative_x, r_relative_y, pitch, yaw, roll])
+
+                    current_samples += 1
+                    if current_samples >= samples_per_point:
+                        calibration_flag = False
+                        current_samples = 0
+                        calibration_point_index += 1
             else:
-                pass
-                # print("Blink detected")
-                # TODO: Obsługa mrugnięcia (dodawanie informacji o mrugnięciu?)
+                cv2.putText(calibration_frame, "Kalibracja zakonczona! Nacisnij ESC", (150, 150), font, 1, (0, 255, 0), 2)
 
 
             """##########################################################
+               # Rysowanie przydatnych informacji na obrazie z kamerki  # 
                ##########################################################"""
             final_frame_rgb = rgb_frame.copy() # Ostateczny obraz kamery
 
@@ -129,7 +168,6 @@ with mp_face_mesh.FaceMesh(
 
             """Spowrotem konwersja na BGR dla OpenCV dla ładnego wyświetlenia"""
             final_frame_bgr = cv2.cvtColor(final_frame_rgb, cv2.COLOR_RGB2BGR)
-
 
         else:
             final_frame_bgr = frame # Jeśli nie wykryło twarzy -> czysty obraz z kamery
@@ -149,10 +187,19 @@ with mp_face_mesh.FaceMesh(
             cv2.putText(debug_view, f"Yaw:   {yaw:.0f}", (20, 250), font, 0.6, (0, 255, 255), 2)
             cv2.putText(debug_view, f"Roll:  {roll:.0f}", (20, 290), font, 0.6, (0, 255, 255), 2)
 
-        cv2.imshow("Z adnotacjami", debug_view)
 
-        """Esc - wyłącza program"""
-        if cv2.waitKey(1) & 0xFF == 27:
+        """Wyświetlenie okien"""
+        cv2.imshow("Z adnotacjami", debug_view)
+        cv2.imshow("Calibration", calibration_frame)
+
+
+        """Obsługa klawiszy:
+           Spacja - zaczyna pobierać próbki kalibracji
+           Esc - wyłącza program """
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord(' '):
+            calibration_flag = True
+        elif key == 27:
             break
 
 
