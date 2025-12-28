@@ -1,17 +1,12 @@
 import csv
-import time
 from pyautogui import size
-from visualize import *
-from calculators import *
+from functions.visualize import *
+from functions.calculators import *
 
+FONT = cv2.FONT_HERSHEY_SIMPLEX # Domyślna czcionka
 
 """Inicjalizacja mediapipowych rzeczy"""
 mp_face_mesh = mp.solutions.face_mesh   #468 punktów na twarzy
-
-
-"""Czcionka"""
-font = cv2.FONT_HERSHEY_SIMPLEX
-
 
 """Zmienne dot. wykrywania mrugnięć"""
 blink_flag = False
@@ -50,10 +45,35 @@ current_samples = 0
 training_data = [] # [lx, ly, rx, ry, h_pitch, h_yaw, h_roll, screen_x, screen_y]
 
 # Plik do zapisu danych kalibracyjnych
-calibration_data_file = "data/calibration_data.csv"
+output_file = "data/default_file.csv"
+
+"""KONFIGURACJA TRYBU PRACY"""
+print("Wybierz tryb pracy:")
+print("1 - KALIBRACJA (Tworzenie zbioru treningowego)")
+print("2 - TESTY (Tworzenie zbioru testowego)")
+print("3 - Nic nie psuj - pobaw się tylko")
+mode = input("Twój wybór (1/2): ")
+
+if mode == '1':
+    output_file = "data/calibration_data.csv" # Zbiór do nauki
+    samples_per_point = 20
+    print(f"Wybrano TRYB KALIBRACJI. Zapis do: {output_file}, Próbek na punkt: {samples_per_point}")
+elif mode == '2':
+    output_file = "data/test_data.csv"  # Zbiór do weryfikacji
+    samples_per_point = 100
+    print(f"Wybrano TRYB TESTOWY. Zapis do: {output_file}, Próbek na punkt: {samples_per_point}")
+elif mode == "3":
+    output_file = "data/new_file.csv"
+    samples_per_point = 10
+    print(f"Wybrano TRYB ZABAWY. Zapis do: {output_file}, Próbek na punkt: {samples_per_point}")
+else:
+    print("Nieprawidłowy wybór. Domyślnie tryb KALIBRACJI.")
+    output_file = "data/calibration_train.csv"
+    samples_per_point = 20
+
 
 # Nagłówki pliku CSV
-with open(calibration_data_file, mode='w', newline='') as f:
+with open(output_file, mode='w', newline='') as f:
     writer = csv.writer(f)
     writer.writerow(['target_x', 'target_y', 'l_rel_x', 'l_rel_y', 'r_rel_x', 'r_rel_y', 'pitch', 'yaw', 'roll'])
 
@@ -131,11 +151,11 @@ with mp_face_mesh.FaceMesh(
                 # Rysowanie punktu kalibracyjnego (zielony -> zbieranie danych, czerwony -> oczekiwanie na klawisz)
                 color = (0, 255, 0) if calibration_flag else (0, 0, 255)
                 cv2.circle(calibration_frame, (point_x, point_y), 20, color, -1)
-                cv2.putText(calibration_frame, "Patrz na punkt i nacisnij SPACE", (150, 50), font, 1, (255, 255, 255), 2)
+                cv2.putText(calibration_frame, "Patrz na punkt i nacisnij SPACE", (150, 50), FONT, 1, (255, 255, 255), 2)
 
                 """Zapisywanie danych"""
                 if calibration_flag and not blink_flag:
-                    with open(calibration_data_file, mode='a', newline='') as f:
+                    with open(output_file, mode='a', newline='') as f:
                         writer = csv.writer(f)
                         writer.writerow(
                             [point[0], point[1], l_relative_x, l_relative_y, r_relative_x, r_relative_y, pitch, yaw, roll])
@@ -146,7 +166,7 @@ with mp_face_mesh.FaceMesh(
                         current_samples = 0
                         calibration_point_index += 1
             else:
-                cv2.putText(calibration_frame, "Kalibracja zakonczona! Nacisnij ESC", (150, 150), font, 1, (0, 255, 0), 2)
+                cv2.putText(calibration_frame, "Kalibracja zakonczona! Nacisnij ESC", (150, 150), FONT, 1, (0, 255, 0), 2)
 
 
             """##########################################################
@@ -181,11 +201,11 @@ with mp_face_mesh.FaceMesh(
         cv2.putText(debug_view, f"R Rel: {r_relative_x:.2f}, {r_relative_y:.2f}", (20, 170),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
         if blink_flag:
-            cv2.putText(debug_view, f"Blinking: {blink_flag}", (20, 110), font, 0.6, (0,0,0),2 )
+            cv2.putText(debug_view, f"Blinking: {blink_flag}", (20, 110), FONT, 0.6, (0,0,0),2 )
         if 'pitch' in locals():
-            cv2.putText(debug_view, f"Pitch: {pitch:.0f}", (20, 210), font, 0.6, (0, 255, 255), 2)
-            cv2.putText(debug_view, f"Yaw:   {yaw:.0f}", (20, 250), font, 0.6, (0, 255, 255), 2)
-            cv2.putText(debug_view, f"Roll:  {roll:.0f}", (20, 290), font, 0.6, (0, 255, 255), 2)
+            cv2.putText(debug_view, f"Pitch: {pitch:.0f}", (20, 210), FONT, 0.6, (0, 255, 255), 2)
+            cv2.putText(debug_view, f"Yaw:   {yaw:.0f}", (20, 250), FONT, 0.6, (0, 255, 255), 2)
+            cv2.putText(debug_view, f"Roll:  {roll:.0f}", (20, 290), FONT, 0.6, (0, 255, 255), 2)
 
 
         """Wyświetlenie okien"""
