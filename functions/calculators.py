@@ -4,35 +4,41 @@ import cv2
 
 def get_relative_iris_coords(eye_landmarks, iris_center):
     """
-    Oblicza znormalizowaną pozycję źrenicy względem obrysu oka.
+    Oblicza znormalizowaną pozycję źrenicy względem kącików oka.
 
     Argumenty:
-    eye_landmarks: lista obiektów landmarków (np. punkty konturu oka)
+    eye_landmarks: lista landmarków (np. punkty konturu oka)
     iris_center: krotka (x, y) oznaczająca środek źrenicy (z get_center_of_landmarks)
 
     Zwraca:
-    (rel_x, rel_y): (0.5, 0.5) - środek oka, (0,0) - lewy górny róg, (1,1) - prawy dolny róg
+    (rel_x, rel_y)
     """
 
     # Wspołrzędne landmarków obrysu oka
     eye_xs = [lm.x for lm in eye_landmarks]
     eye_ys = [lm.y for lm in eye_landmarks]
 
-    # Granice bounding box oka
+    # Kąciki oka
     min_x = min(eye_xs)
     max_x = max(eye_xs)
-    min_y = min(eye_ys)
-    max_y = max(eye_ys)
 
     eye_width = max_x - min_x
-    eye_height = max_y - min_y
-
-    if eye_width == 0 or eye_height == 0:   # Dzielenie przez 0
+    if eye_width == 0:
         return 0.5, 0.5
 
-    # Normalizacja: (Wartość - Minimum) / Rozpiętość
+    # środek Y -> średnia Y z punktów o min_x i max_x
+    corner_1_y = eye_ys[eye_xs.index(min_x)]
+    corner_2_y = eye_ys[eye_xs.index(max_x)]
+    center_y = (corner_1_y + corner_2_y) / 2.0
+
+    """relatywne położenie centrum źrenicy - współrzędna X
+       od lewego kącika do środka źrenicy
+       normalizacja względem szerokości oka"""
     rel_x = (iris_center[0] - min_x) / eye_width
-    rel_y = (iris_center[1] - min_y) / eye_height
+
+    """relatywne położenie centrum źrenicy - współrzędna Y
+       normalizacja względem szerokości oka (wysokość zmienia się przy patrzenie góra - dół)"""
+    rel_y = (iris_center[1] - center_y) / eye_width
 
     return rel_x, rel_y
 

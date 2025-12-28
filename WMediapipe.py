@@ -56,7 +56,7 @@ mode = input("Twój wybór (1/2): ")
 
 if mode == '1':
     output_file = "data/calibration_data.csv" # Zbiór do nauki
-    samples_per_point = 20
+    samples_per_point = 30
     print(f"Wybrano TRYB KALIBRACJI. Zapis do: {output_file}, Próbek na punkt: {samples_per_point}")
 elif mode == '2':
     output_file = "data/test_data.csv"  # Zbiór do weryfikacji
@@ -75,7 +75,7 @@ else:
 # Nagłówki pliku CSV
 with open(output_file, mode='w', newline='') as f:
     writer = csv.writer(f)
-    writer.writerow(['target_x', 'target_y', 'l_rel_x', 'l_rel_y', 'r_rel_x', 'r_rel_y', 'pitch', 'yaw', 'roll'])
+    writer.writerow(['target_x', 'target_y', 'l_rel_x', 'l_rel_y', 'r_rel_x', 'r_rel_y', 'pitch', 'yaw', 'roll', 'eye_aspect_ratio'])
 
 # Tworzenie okna kalibracji
 cv2.namedWindow("Calibration", cv2.WND_PROP_FULLSCREEN)
@@ -157,8 +157,13 @@ with mp_face_mesh.FaceMesh(
                 if calibration_flag and not blink_flag:
                     with open(output_file, mode='a', newline='') as f:
                         writer = csv.writer(f)
-                        writer.writerow(
-                            [point[0], point[1], l_relative_x, l_relative_y, r_relative_x, r_relative_y, pitch, yaw, roll])
+                        writer.writerow([
+                             point[0], point[1],
+                             l_relative_x, l_relative_y,
+                             r_relative_x, r_relative_y,
+                             pitch, yaw, roll,
+                             blink_ratio
+                        ])
 
                     current_samples += 1
                     if current_samples >= samples_per_point:
