@@ -1,7 +1,12 @@
+import time
+import joblib
+import pandas as pd
 from pyautogui import size
+from collections import deque
 from functions.visualize import *
 from functions.calculators import *
 from functions.fileHandlers import *
+from analyze import train
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX # Domyślna czcionka
 
@@ -43,22 +48,28 @@ calibration_point_index = 0 # Indeks obecnego punktu kalibracyjnego
 samples_per_point = 20      # Ile próbek dla jednego punktu
 current_samples = 0
 
-# Plik do zapisu danych kalibracyjnych
+calibration_samples = 30
+test_samples = 50
+
 output_file = "data/default_file.csv"
 
+"""Inicjalizacja modelu uczenia"""
+model = None
+model_trained = False
+
+"""Konfiguracja wygładzania ruchu kursora (Smoothing)"""
+SMOOTHING_BUFFER_SIZE = 9  # Mediana z ostatnich X klatek
+x_buffer = deque(maxlen=SMOOTHING_BUFFER_SIZE)
+y_buffer = deque(maxlen=SMOOTHING_BUFFER_SIZE)
 
 
+""" --- KONFIGURACJA TRYBU PRACY --- """
 
-"""KONFIGURACJA TRYBU PRACY"""
 print("Wybierz tryb pracy:")
 print("1 - KALIBRACJA (Tworzenie zbioru treningowego)")
 print("2 - TESTY (Tworzenie zbioru testowego)")
 print("3 - KURSOR (Użycie poprzednich danych kalibracyjnych)")
 mode = input("Twój wybór (1/3): ")
-
-calibration_samples = 20
-test_samples = 50
-
 if mode == '1':
     output_file = "data/calibration_data.csv" # Zbiór do nauki
     write_header(output_file, 'calibration')
@@ -71,19 +82,25 @@ elif mode == '2':
     print(f"Wybrano TRYB TESTOWY. Zapis do: {output_file}, Próbek na punkt: {samples_per_point}")
 elif mode == "3":
     calibration_done = True                 # Opuszczenie kalibracji
+    try:
+        model = joblib.load("data/calibration_model.pkl")
+        print("Model załadowany pomyślnie.")
+        model_trained = True
+    except FileNotFoundError:
+        print("Błąd: Nie znaleziono modelu po treningu.")
     output_file = "data/session_data.csv"   # Zbiór danych z sesji
     write_header(output_file, 'prediction')
-    print(f"Wybrano TRYB DZIAŁANIA. Zapis do: {output_file}")
+    print(f"Wybrano TRYB KURSORA. Zapis do: {output_file}")
 else:
     output_file = "data/calibration_data.csv"
     write_header(output_file, 'calibration')
     samples_per_point = 20
     print("Nieprawidłowy wybór. Domyślnie tryb KALIBRACJI.")
 
-
 # Tworzenie okna kalibracji
 cv2.namedWindow("Calibration", cv2.WND_PROP_FULLSCREEN)
 cv2.setWindowProperty("Calibration", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+
 
 """Główny program"""
 
@@ -92,8 +109,8 @@ webcam = cv2.VideoCapture(0)
 with mp_face_mesh.FaceMesh(
     max_num_faces=1,
     refine_landmarks=True, # To dodaje punkty źrenic więc giga ważne
-    min_detection_confidence=0.5,
-    min_tracking_confidence=0.5
+    min_detection_confidence=0.8,
+    min_tracking_confidence=0.8
 ) as face_mesh:
 
     while True:
@@ -154,7 +171,7 @@ with mp_face_mesh.FaceMesh(
                     cv2.circle(calibration_frame, (point_x, point_y), 20, color, -1)
                     cv2.putText(calibration_frame, "Patrz na punkt i nacisnij SPACE", (150, 50), FONT, 1, (255, 255, 255), 2)
 
-                    """Zapisywanie danych"""
+                    """Zapisywanie danych dot. bieżącego punktu kalibracyjnego"""
                     if calibration_flag and not blink_flag:
                         save_calibration_data(output_file, point, l_relative_x, l_relative_y, r_relative_x, r_relative_y,pitch, yaw, roll, blink_ratio)
 
@@ -162,20 +179,70 @@ with mp_face_mesh.FaceMesh(
                         if current_samples >= samples_per_point:
                             calibration_flag = False
                             current_samples = 0
-                            calibration_point_index += 1
+                            calibration_point_index += 1    # Przejście do kolejnego punktu
                 else:
                     calibration_done = True
                     output_file = "data/session_data.csv"
                     write_header(output_file, 'prediction')
 
                 """Jeżeli kalibracja została przeprowadzona
-                   rozpoczęcie sesji zbierania danych"""
+                   trenowanie modelu [regresji] - jeden raz
+                   rozpoczęcie sesji zbierania danych
+                   SPACE - początek zbierania danych"""
             else:
+                if not model_trained:
+                    print("Rozpoczynam trenowanie modelu...")
+                    train(visualise=False)
+                    try:
+                        model = joblib.load("data/calibration_model.pkl")
+                        print("Model załadowany pomyślnie.")
+                        model_trained = True
+                    except FileNotFoundError:
+                        print("Błąd: Nie znaleziono modelu po treningu.")
+
+                """Po wytrenowaniu modelu wyświetlenie menu kontekstowego
+                   SPACE -> rozpoczęcie predykcji na żywo i ruch kursora"""
                 if not start_cursor:
                     cv2.putText(calibration_frame, "Kalibracja zakonczona! ESC -> koniec programu ", (150, 150), FONT, 1,(0, 255, 0), 2)
                     cv2.putText(calibration_frame, "                        SPACE -> pokazanie kursora ", (150, 200), FONT, 1,(0, 255, 0), 2)
+                    cv2.putText(calibration_frame, "                        t -> tryb testowy ", (150, 250), FONT, 1,(0, 255, 0), 2)
                 else:
-                    save_session_data(output_file, l_relative_x, l_relative_y, r_relative_x, r_relative_y,pitch, yaw, roll, blink_ratio)
+                    input_data = pd.DataFrame([[
+                        l_relative_x, l_relative_y, r_relative_x, r_relative_y,
+                        pitch, yaw, roll,
+                        blink_ratio
+                        ]],
+                        columns=['l_rel_x', 'l_rel_y', 'r_rel_x', 'r_rel_y', 'pitch', 'yaw', 'roll','eye_aspect_ratio'])
+
+                    # Predykcja i dodanie predykcji do
+                    prediction = model.predict(input_data)
+                    pred_x, pred_y = prediction[0]
+                    x_buffer.append(pred_x)
+                    y_buffer.append(pred_y)
+
+                    """Wygładzanie za pomocą filtra medianowego"""
+                    med_x = np.median(list(x_buffer))
+                    med_y = np.median(list(y_buffer))
+                    # Konwersja na piksele
+                    screen_x = int(med_x * screen_width)
+                    screen_y = int(med_y * screen_height)
+                    # Zabezpieczenie krawędzi
+                    screen_x = max(0, min(screen_x, screen_width))
+                    screen_y = max(0, min(screen_y, screen_height))
+
+                    """Wizualizacja kursora"""
+                    # Kursor
+                    cv2.circle(calibration_frame, (screen_x, screen_y), 15, (0, 0, 255), -1)
+                    # Współrzędne
+                    cv2.putText(calibration_frame, f"X: {screen_x} Y: {screen_y}", (screen_x + 20, screen_y), FONT, 0.5,(0, 0, 255), 1)
+                    # Kropka pokazująca wszystkie punkty predykcji - bez uśredniania
+                    raw_screen_x = int(pred_x * screen_width)
+                    raw_screen_y = int(pred_y * screen_height)
+                    cv2.circle(calibration_frame, (raw_screen_x, raw_screen_y), 5, (0, 255, 255), -1) # Żółta mała kropka
+
+                    """ Zapis predykcji w czasie"""
+                    current_time = time.time()
+                    save_session_data(output_file,current_time,screen_x,screen_y)
 
 
             """##########################################################

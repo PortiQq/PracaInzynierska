@@ -14,7 +14,7 @@ def write_header(df, header_type):
     elif header_type == 'prediction':
         with open(df, mode='w', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(['l_rel_x', 'l_rel_y', 'r_rel_x', 'r_rel_y', 'pitch', 'yaw', 'roll', 'eye_aspect_ratio'])
+            writer.writerow(['timestamp', 'screen_x', 'screen_y'])
     else:
         raise ValueError('Header type must be either calibration or prediction')
 
@@ -34,7 +34,7 @@ def save_calibration_data(df, point, l_relative_x, l_relative_y, r_relative_x,r_
             blink_ratio
         ])
 
-def save_session_data(df, l_relative_x, l_relative_y, r_relative_x,r_relative_y, pitch, yaw, roll,blink_ratio):
+def save_session_data(df, timestamp, screen_x, screen_y):
     """
     Zapisuje dane sesji do pliku csv
     :param df: output file
@@ -42,8 +42,5 @@ def save_session_data(df, l_relative_x, l_relative_y, r_relative_x,r_relative_y,
     with open(df, mode='a', newline='') as f:
         writer = csv.writer(f)
         writer.writerow([
-            l_relative_x, l_relative_y,
-            r_relative_x, r_relative_y,
-            pitch, yaw, roll,
-            blink_ratio
+            timestamp, screen_x, screen_y
         ])
