@@ -12,8 +12,8 @@ tracker_flag = False
 def nothing(x):
     pass
 
-face_cascade = cv2.CascadeClassifier('../data/haarcascade_frontalface_default.xml')
-eye_cascade = cv2.CascadeClassifier('../data/haarcascade_eye.xml')
+face_cascade = cv2.CascadeClassifier('data/haarcascade_frontalface_default.xml')
+eye_cascade = cv2.CascadeClassifier('data/haarcascade_eye.xml')
 
 """Switch do wyboru metody śledzenia"""
 method = 1
