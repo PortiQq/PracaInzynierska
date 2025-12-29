@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from useful import get_distance, get_np_array_of_landmarks
+from functions.useful import get_distance, get_np_array_of_landmarks
 
 
 def find_farthest_landmark_index(landmarks, indices_list, direction):
