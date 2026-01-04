@@ -16,7 +16,7 @@ def draw_landmarks(image, result):
             mp_drawing.draw_landmarks(
                 image=image,
                 landmark_list=face_landmark,
-                connections=mp_face_mesh.FACEMESH_IRISES,
+                connections=mp_face_mesh.FACEMESH_TESSELATION,
                 landmark_drawing_spec=None,
                 connection_drawing_spec=mp_drawing.DrawingSpec(thickness=1, circle_radius=1),
             )

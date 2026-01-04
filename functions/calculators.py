@@ -2,7 +2,7 @@ from functions.useful import *
 import cv2
 
 
-def get_relative_iris_coords(eye_landmarks, iris_center):
+def get_relative_iris_coords(eye_landmarks, iris_center, corner_landmark):
     """
     Oblicza znormalizowaną pozycję źrenicy względem kącików oka.
 
@@ -22,6 +22,8 @@ def get_relative_iris_coords(eye_landmarks, iris_center):
     min_x = min(eye_xs)
     max_x = max(eye_xs)
 
+    corner_y = corner_landmark.y
+
     eye_width = max_x - min_x
     if eye_width == 0:
         return 0.5, 0.5
@@ -38,7 +40,7 @@ def get_relative_iris_coords(eye_landmarks, iris_center):
 
     """relatywne położenie centrum źrenicy - współrzędna Y
        normalizacja względem szerokości oka (wysokość zmienia się przy patrzenie góra - dół)"""
-    rel_y = (iris_center[1] - center_y) / eye_width
+    rel_y = (iris_center[1] - corner_y) / eye_width
 
     return rel_x, rel_y
 
@@ -62,9 +64,22 @@ def get_head_pose(frame, face_landmarks):
         [150.0, -150.0, -125.0]  # Right mouth corner (291)
     ], dtype=np.float64)
 
-    # Odpowiadające punkty 2D z MediaPipe
+
+    nose_left_lm = face_landmarks[48]
+    nose_right_lm = face_landmarks[278]
+
+    nose_l_x, nose_l_y = nose_left_lm.x * width, nose_left_lm.y * height
+    nose_r_x, nose_r_y = nose_right_lm.x * width, nose_right_lm.y * height
+
+    avg_nose_x = (nose_l_x + nose_r_x) / 2
+    avg_nose_y = (nose_l_y + nose_r_y) / 2
+
     face_2d = []
-    for idx in [4, 152, 33, 263, 61, 291]:
+    # Nos jako średnia dwóch punktów
+    face_2d.append([avg_nose_x, avg_nose_y])
+    # Pozostałe punkty
+    other_landmarks = [152, 33, 263, 61, 291]
+    for idx in other_landmarks:
         lm = face_landmarks[idx]
         x, y = int(lm.x * width), int(lm.y * height)
         face_2d.append([x, y])
