@@ -6,7 +6,7 @@ from collections import deque
 from functions.visualize import *
 from functions.calculators import *
 from functions.fileHandlers import *
-from analyze import train
+from functions.train import train
 
 
 """Globalne zmienne dot. ekranu, debugu, plików"""
@@ -81,7 +81,7 @@ model_trained = False
 start_cursor = False                            # Wyświetlanie kursora na ramce
 SMOOTHING_BUFFER_SIZE = 15                      # Średnia z ostatnich X klatek
 x_buffer = deque(maxlen=SMOOTHING_BUFFER_SIZE)  # Kolejka dwustronna
-y_buffer = deque(maxlen=SMOOTHING_BUFFER_SIZE)  # jako bufor predykcji
+y_buffer = deque(maxlen=SMOOTHING_BUFFER_SIZE)  # jako bufor dla predykcji
 
 
 """ --- KONFIGURACJA TRYBU PRACY --- """
@@ -172,10 +172,12 @@ with mp_face_mesh.FaceMesh(
             else:
                 blink_flag = False
 
-            """Obliczanie współrzędnych spojrzenia 
+            """Obliczanie współrzędnych źrenicy 
                relatywnie do kącików oka"""
-            l_relative_x, l_relative_y = get_relative_iris_coords(left_eye_landmarks, left_iris_center, face_landmarks[LEFT_EYE_RIGHT_CORNER])
-            r_relative_x, r_relative_y = get_relative_iris_coords(right_eye_landmarks, right_iris_center, face_landmarks[RIGHT_EYE_LEFT_CORNER])
+            l_relative_x, l_relative_y = get_relative_iris_coords(
+                left_eye_landmarks, left_iris_center, face_landmarks[LEFT_EYE_RIGHT_CORNER])
+            r_relative_x, r_relative_y = get_relative_iris_coords(
+                right_eye_landmarks, right_iris_center, face_landmarks[RIGHT_EYE_LEFT_CORNER])
 
             """Obliczenie pozycji głowy"""
             (pitch, yaw, roll), rotation_vector, translation_vector, camera_matrix = get_head_pose(frame, face_landmarks)

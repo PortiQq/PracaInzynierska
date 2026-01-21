@@ -4,11 +4,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pyautogui import size
 
-# --- KONFIGURACJA ---
+
 INPUT_FILE = "data/validation_data.csv"
+
+""" Konfiguracja dla obecnego urządzenia i pomiaru"""
 SCREEN_WIDTH, SCREEN_HEIGHT = size()
-SCREEN_WIDTH_MM = 345  # Np. 345 mm dla typowego laptopa 15.6 cala
-USER_DISTANCE_MM = 400 # Przyjmujemy standardowe 60 cm, jeśli nie masz danych z czujnika
+SCREEN_WIDTH_MM = 345
+USER_DISTANCE_MM = 500 # Odległość użytkownika od kamery
 
 def pixels_to_degrees(error_px, screen_width_mm=SCREEN_WIDTH_MM, distance_mm=USER_DISTANCE_MM):
     """
@@ -37,7 +39,7 @@ def evaluate_session():
     df['error_y'] = np.abs(df['point_y'] - df['screen_y'])
     df['error_dist'] = np.sqrt(df['error_x'] ** 2 + df['error_y'] ** 2)
 
-    # --- STATYSTYKI ---
+    """Statystyki błędów"""
     mae_x = df['error_x'].mean()
     mae_y = df['error_y'].mean()
     mean_error = df['error_dist'].mean()

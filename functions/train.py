@@ -10,8 +10,8 @@ from sklearn.metrics import mean_absolute_error
 import joblib
 import os
 
-MODEL_FILE = "data/calibration_model.pkl"
-INPUT_FILE = "data/calibration_data.csv"
+MODEL_FILE = "../data/calibration_model.pkl"
+INPUT_FILE = "../data/calibration_data.csv"
 SCREEN_WIDTH, SCREEN_HEIGHT = size()
 
 def train(visualise = True):
@@ -23,13 +23,13 @@ def train(visualise = True):
 
     # Sprawdzenie liczby unikalnych punktów kalibracyjnych
     unique_points = df.groupby(['target_x', 'target_y']).size().reset_index().rename(columns={0: 'count'})
-    print(f"Znaleziono {len(unique_points)} unikalnych punktów kalibracyjnych:")
+    print(f"Znaleziono {len(unique_points)} unikalnych punktów:")
     print(unique_points)
     print(f"Łącznie próbek: {len(df)}")
 
     # Definicja wejścia i wyjścia
-    X = df[['l_rel_x', 'l_rel_y', 'r_rel_x', 'r_rel_y', 'pitch', 'yaw', 'roll']]
-    # X = df[['l_rel_x', 'l_rel_y', 'r_rel_x', 'r_rel_y', 'pitch', 'yaw']]
+    # X = df[['l_rel_x', 'l_rel_y', 'r_rel_x', 'r_rel_y', 'pitch', 'yaw', 'roll']]
+    X = df[['l_rel_x', 'l_rel_y', 'r_rel_x', 'r_rel_y', 'pitch', 'yaw']]
     y = df[['target_x', 'target_y']]
 
     # Podział na dane treningowe i dane walidacyjne
@@ -41,7 +41,7 @@ def train(visualise = True):
         PolynomialFeatures(degree=2, include_bias=False),
         Ridge(alpha=0.1)
     )
-    model.fit(X_train, y_train)
+    model.fit(X, y)
 
     # Zapis modelu do pliku
     joblib.dump(model, MODEL_FILE)

@@ -1,6 +1,6 @@
 import cv2
 import mediapipe as mp
-from functions.useful import *
+from functions.utils import *
 
 mp_drawing = mp.solutions.drawing_utils
 mp_face_mesh = mp.solutions.face_mesh
