@@ -22,16 +22,22 @@ def detect_pupil(eye_frame, threshold):
     # Dylatacja powiększenie pozostałych elementów (źrenicy)
     threshold = cv2.dilate(threshold, kernel, iterations=1)
 
+    thresh_image = cv2.cvtColor(threshold, cv2.COLOR_GRAY2BGR)
+
     contours, _ = cv2.findContours(threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     contours = sorted(contours, key=lambda x: cv2.contourArea(x), reverse=True)
 
+
+
     if contours:
+        pupil_contour = contours[0]
+        cv2.drawContours(thresh_image, [pupil_contour], -1, (0, 0, 255), 1)
         (x, y, w, h) = cv2.boundingRect(contours[0])
         cx = x + int(w / 2)
         cy = y + int(h / 2)
-        return (cx, cy), threshold
+        return (cx, cy), thresh_image
 
-    return None, threshold
+    return None, thresh_image
 
 
 def detect_pupil_hough(eye_frame, edge_detection_threshold, accumulator_threshold):
@@ -72,9 +78,9 @@ def detect_pupil_hough(eye_frame, edge_detection_threshold, accumulator_threshol
             center = (i[0], i[1])
             radius = i[2]
             # Zewnętrzny okrąg
-            cv2.circle(output_frame, center, radius, (255, 0, 255), 2)
+            cv2.circle(output_frame, center, radius, (255, 0, 255), 1)
             # Środek koła
-            cv2.circle(output_frame, center, 2, (0, 0, 255), 3)
+            cv2.circle(output_frame, center, 2, (0, 0, 255), 1)
 
             detected_center = center
             # Przerwanie po wzięciu największego okręgu

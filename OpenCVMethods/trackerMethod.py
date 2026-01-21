@@ -3,10 +3,6 @@ import cv2
 def main():
     cap = cv2.VideoCapture(0)
 
-    if not cap.isOpened():
-        print("Błąd: Nie można otworzyć kamery.")
-        return
-
     success, frame = cap.read()
     if not success:
         print("Błąd: Nie można odczytać klatki z kamery.")

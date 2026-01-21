@@ -4,7 +4,8 @@ from pupilDetection import *
 from templateMethod import *
 
 """Inicjalizacje"""
-prev_time = time.time()
+prev_time = 0
+new_time = 0
 template = None
 tracker = None
 tracker_flag = False
@@ -16,7 +17,7 @@ face_cascade = cv2.CascadeClassifier('data/haarcascade_frontalface_default.xml')
 eye_cascade = cv2.CascadeClassifier('data/haarcascade_eye.xml')
 
 """Switch do wyboru metody śledzenia"""
-method = 1
+method = 3
 
 if method == 1:
     cv2.namedWindow("Eye tracking")
@@ -43,10 +44,12 @@ while True:
     frame_copy = frame.copy()
     pupil_pos, eye_view = None, None
 
-    """Pomiar FPS"""
-    current_time = time.time()
-    fps = 1 / (current_time - prev_time)
-    prev_time = current_time
+    """Wyświetlenie liczby FPS"""
+    new_time = time.time()
+    fps = 1 / (new_time - prev_time)
+    prev_time = new_time
+    fps = int(fps)
+    fps = str(fps)
 
 
     """Wykrycie twarzy z użyciem HaarCascade
@@ -122,8 +125,7 @@ while True:
             cv2.imshow("Eye tracking", bigger)
 
 
-    cv2.putText(frame, f"FPS: {int(fps)}", (20, 40),
-                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+    cv2.putText(frame, f"FPS: {int(fps)}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
     frame = cv2.flip(frame, 1)
     cv2.imshow('Pure OpenCV Eye Tracking', frame)

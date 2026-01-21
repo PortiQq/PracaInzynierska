@@ -38,7 +38,7 @@ def get_landmark_px(frame, landmark):
     Zwraca koordynaty landmarków w pikselach
     """
     h, w, _ = frame.shape
-    px_values = (int(landmark[0]*w), int(landmark[1]*h))
+    px_values = (int(landmark.x * w), int(landmark.y * h))
     return px_values
 
 

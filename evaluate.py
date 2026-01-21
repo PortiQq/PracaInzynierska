@@ -7,6 +7,18 @@ from pyautogui import size
 # --- KONFIGURACJA ---
 INPUT_FILE = "data/validation_data.csv"
 SCREEN_WIDTH, SCREEN_HEIGHT = size()
+SCREEN_WIDTH_MM = 345  # Np. 345 mm dla typowego laptopa 15.6 cala
+USER_DISTANCE_MM = 400 # Przyjmujemy standardowe 60 cm, jeśli nie masz danych z czujnika
+
+def pixels_to_degrees(error_px, screen_width_mm=SCREEN_WIDTH_MM, distance_mm=USER_DISTANCE_MM):
+    """
+    Konwertuje błąd z pikseli na stopnie kąta widzenia.
+    """
+    mm_per_pixel = screen_width_mm / SCREEN_WIDTH
+    error_mm = error_px * mm_per_pixel
+    angle = np.degrees(np.arctan(error_mm / distance_mm))
+
+    return angle
 
 def evaluate_session():
     if not os.path.exists(INPUT_FILE):
@@ -31,12 +43,15 @@ def evaluate_session():
     mean_error = df['error_dist'].mean()
     max_error = df['error_dist'].max()
 
+    mean_error_deg = pixels_to_degrees(mean_error)
+
     print("\n" + "=" * 40)
     print(f" WYNIKI WALIDACJI (Liczba próbek: {len(df)})")
     print("=" * 40)
     print(f"Średni błąd X: {mae_x:.1f} px")
     print(f"Średni błąd Y: {mae_y:.1f} px")
     print(f"ŚREDNI BŁĄD CAŁKOWITY (Mean):   {mean_error:.1f} px")
+    print(f"ŚREDNI BŁĄD CAŁKOWITY w stopniach (Mean):   {mean_error_deg:.1f} STOPNI")
     print(f"Maksymalny błąd: {max_error:.1f} px")
     print("=" * 40)
 

@@ -40,6 +40,6 @@ def draw_eye_center(frame, landmarks, color=(0, 0, 255), thickness=2):
     trzeba zmienić na wartości w pikselach
     """
     h, w, _ = frame.shape
-    (center_x, center_y) = get_center_of_landmarks(landmarks)
-    center_x_px, center_y_px = get_landmark_px(frame, (center_x, center_y))
+    # (center_x, center_y) = get_center_of_landmarks(landmarks)
+    center_x_px, center_y_px = get_landmark_px(frame, landmarks)
     cv2.circle(frame, (center_x_px, center_y_px), 1, color=color, thickness=thickness)

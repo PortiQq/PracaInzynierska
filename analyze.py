@@ -29,6 +29,7 @@ def train(visualise = True):
 
     # Definicja wejścia i wyjścia
     X = df[['l_rel_x', 'l_rel_y', 'r_rel_x', 'r_rel_y', 'pitch', 'yaw', 'roll']]
+    # X = df[['l_rel_x', 'l_rel_y', 'r_rel_x', 'r_rel_y', 'pitch', 'yaw']]
     y = df[['target_x', 'target_y']]
 
     # Podział na dane treningowe i dane walidacyjne
