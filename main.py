@@ -60,7 +60,7 @@ take_validation_sample = False     # Zbieranie danych do walidacji po naciśnię
 current_point_index = 0     # Indeks aktualnego punktu kalibracyjnego/testowego
 samples_per_point = 0       # Ile próbek dla jednego punktu
 current_samples = 0         # Zebrane próbki dla aktualnego punktu
-CALIBRATION_SAMPLES = 100   # Liczba punktów dla danych kalibracyjnych
+CALIBRATION_SAMPLES = 150   # Liczba punktów dla danych kalibracyjnych
 VALIDATION_SAMPLES = 30     # Liczba punktów dla danych testowych
 
 VALIDATION_POINTS = [

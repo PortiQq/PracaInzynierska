@@ -10,7 +10,7 @@ INPUT_FILE = "data/validation_data.csv"
 """ Konfiguracja dla obecnego urządzenia i pomiaru"""
 SCREEN_WIDTH, SCREEN_HEIGHT = size()
 SCREEN_WIDTH_MM = 345
-USER_DISTANCE_MM = 500 # Odległość użytkownika od kamery
+USER_DISTANCE_MM = 650 # Odległość użytkownika od kamery
 
 def pixels_to_degrees(error_px, screen_width_mm=SCREEN_WIDTH_MM, distance_mm=USER_DISTANCE_MM):
     """
@@ -68,14 +68,14 @@ def evaluate_session():
     # Rysowanie wszystkich predykcji
     scatter = plt.scatter(df['screen_x'], df['screen_y'],
                           c=df['error_dist'], cmap='coolwarm',
-                          alpha=0.6, s=30, label='Pozycja Kursora')
+                          alpha=0.9, s=10, label='Estymacja')
 
     plt.colorbar(scatter, label='Błąd odległości (px)')
 
     # Rysowanie celów
     unique_targets = df[['point_x', 'point_y']].drop_duplicates()
     plt.scatter(unique_targets['point_x'], unique_targets['point_y'],
-                c='lime', marker='X', s=200, edgecolors='black', linewidth=2, label='Cel (Target)')
+                c='red', marker='+', s=200, linewidth=2, label='Punkt docelowy')
 
     # Linie łączące
     for i in range(len(df)):
@@ -83,8 +83,8 @@ def evaluate_session():
                  [df.iloc[i]['point_y'], df.iloc[i]['screen_y']],
                  color='gray', alpha=0.1)
 
-    plt.title(f"Wyniki Walidacji (Mean Error: {mean_error:.1f} px)\n"
-              f"Zielony X = Cel, Kropki = Kursor")
+    plt.title(f"Wyniki walidacji dla odległości od kamery = {USER_DISTANCE_MM:.1f} mm\n"
+              f"Średni błąd w mierze kątowej: {mean_error_deg:.1f} STOPNI")
     plt.xlabel("Ekran X (px)")
     plt.ylabel("Ekran Y (px)")
 
@@ -92,7 +92,7 @@ def evaluate_session():
     plt.xlim(-50, SCREEN_WIDTH + 50)
     plt.ylim(-50, SCREEN_HEIGHT + 50)
     plt.gca().invert_yaxis()  # Odwrócenie osi Y
-    plt.legend(loc='upper right')
+    plt.legend(bbox_to_anchor=(0.92, 1.08), loc='upper left', borderaxespad=0.)
     plt.grid(True, linestyle='--', alpha=0.5)
 
     plt.tight_layout()

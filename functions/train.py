@@ -10,8 +10,11 @@ from sklearn.metrics import mean_absolute_error
 import joblib
 import os
 
-MODEL_FILE = "../data/calibration_model.pkl"
-INPUT_FILE = "../data/calibration_data.csv"
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+INPUT_FILE = os.path.join(CURRENT_DIR, '../data/calibration_data.csv')
+MODEL_FILE = os.path.join(CURRENT_DIR, '../data/calibration_model.pkl')
+
 SCREEN_WIDTH, SCREEN_HEIGHT = size()
 
 def train(visualise = True):
