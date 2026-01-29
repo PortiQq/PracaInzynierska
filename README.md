@@ -42,7 +42,7 @@ source venv/bin/activate
 ```
 ### Instalacja zależności:
 ```bash
-pip install requirements.txt
+pip install -r requirements.txt
 ```
 ### Uruchomienie:
 - Program główny:
