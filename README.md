@@ -53,3 +53,12 @@ python main.py
 ```bash
 python evaluate.py
 ```
+
+### Przykładowe dane
+W katalogu `data/sample_data` znajdują się przykładowe pliki z danymi rejestrowanymi przez system:
+
+| Nazwa pliku | Opis zawartości |
+|:---|:---|
+| `calibration_data.csv` | Dane rejestrowane podczas kalibracji (pozycja głowy/oczu ↔ punkt na ekranie), służące do trenowania modelu. |
+| `validation_data.csv` | Zbiór danych testowych wykorzystywany do ewaluacji dokładności i precyzji systemu. |
+| `session_data.csv` | Dane zebrane w trakcie swobodnej sesji użytkowania programu (już po procesie kalibracji). |
