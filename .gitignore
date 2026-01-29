@@ -1,6 +1,6 @@
 # Own files
-data/**/*.csv
-data/**/*.pkl
+data/*.csv
+data/*.pkl
 
 results
 
